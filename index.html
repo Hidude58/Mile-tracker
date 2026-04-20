@@ -1,8 +1,110 @@
-<script>
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>DriveLedger</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+
+  <style>
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
+
+    h2 {
+      text-align: center;
+      margin: 20px 0;
+    }
+
+    .container {
+      padding: 16px;
+      max-width: 500px;
+      margin: auto;
+    }
+
+    .card {
+      background: #1e293b;
+      padding: 16px;
+      border-radius: 16px;
+      margin-bottom: 16px;
+    }
+
+    input {
+      width: 100%;
+      padding: 12px;
+      margin-top: 8px;
+      border-radius: 10px;
+      border: none;
+      background: #0f172a;
+      color: white;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      margin-top: 10px;
+      border-radius: 10px;
+      border: none;
+      background: #22c55e;
+      color: white;
+      font-weight: bold;
+    }
+
+    hr {
+      border: none;
+      border-top: 1px solid #334155;
+      margin: 10px 0;
+    }
+  </style>
+</head>
+
+<body>
+
+<h2>🚗 DriveLedger</h2>
+
+<div class="container">
+
+  <div class="card">
+    <h3>Shift Entry</h3>
+    <input id="startMiles" placeholder="Start Odometer">
+    <input id="endMiles" placeholder="End Odometer">
+    <input id="earnings" placeholder="Earnings ($)">
+    <button onclick="saveShift()">Save Shift</button>
+  </div>
+
+  <div class="card">
+    <h3>Gas Receipt</h3>
+    <input type="file" accept="image/*" capture="environment" onchange="scanReceipt(event)">
+    <p id="ocrStatus"></p>
+
+    <input id="gallonsInput" placeholder="Gallons">
+    <input id="costInput" placeholder="Total Cost ($)">
+    <button onclick="confirmGas()">Save Gas</button>
+  </div>
+
+  <div class="card">
+    <h3>Stats</h3>
+    <div id="stats"></div>
+  </div>
+
+  <div class="card">
+    <h3>History</h3>
+    <div id="history"></div>
+  </div>
+
+</div>
+
+<script type="module">
+
+// ---------------- FIREBASE ----------------
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
-// 🔥 PASTE YOUR FIREBASE CONFIG HERE
+// 🔴 PUT YOUR FIREBASE CONFIG HERE
 const firebaseConfig = {
   apiKey: "AIzaSyCsYz1dLbZVnmrql03LKLV7RFIFQl0I_F0",
   authDomain: "mile-tracker-9dda0.firebaseapp.com",
@@ -15,98 +117,128 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 
-// simple user id (no login yet)
-const userId = "defaultUser";
-
 let shifts = [];
 let gas = [];
+const userId = "defaultUser";
 
-// LOAD DATA FROM CLOUD
+// ---------------- LOAD CLOUD DATA ----------------
 async function loadData() {
-  const ref = doc(db, "users", userId);
-  const snap = await getDoc(ref);
+  const snap = await getDoc(doc(db, "users", userId));
 
   if (snap.exists()) {
-    const data = snap.data();
-    shifts = data.shifts || [];
-    gas = data.gas || [];
+    shifts = snap.data().shifts || [];
+    gas = snap.data().gas || [];
   }
 
   updateUI();
 }
 
-// SAVE DATA TO CLOUD
-async function save() {
+// ---------------- SAVE CLOUD DATA ----------------
+async function saveCloud() {
   await setDoc(doc(db, "users", userId), {
     shifts,
     gas
   });
 }
 
-// SHIFT
-function saveShift() {
-  let start = parseFloat(startMiles.value);
-  let end = parseFloat(endMiles.value);
-  let earn = parseFloat(earnings.value);
+// ---------------- SHIFT ----------------
+window.saveShift = async function () {
+  let start = parseFloat(document.getElementById("startMiles").value);
+  let end = parseFloat(document.getElementById("endMiles").value);
+  let earn = parseFloat(document.getElementById("earnings").value);
 
   if (isNaN(start) || isNaN(end) || isNaN(earn)) return alert("Fill all fields");
-  if (end < start) return alert("End must be higher");
 
   shifts.push({ start, end, earn });
-  save();
+
+  await saveCloud();
   updateUI();
 
   startMiles.value = "";
   endMiles.value = "";
   earnings.value = "";
-}
+};
 
-// GAS
-function confirmGas() {
-  let g = parseFloat(gallonsInput.value);
-  let c = parseFloat(costInput.value);
+// ---------------- GAS CONFIRM ----------------
+window.confirmGas = async function () {
+  let g = parseFloat(document.getElementById("gallonsInput").value);
+  let c = parseFloat(document.getElementById("costInput").value);
 
-  if (isNaN(g) || isNaN(c)) return alert("Enter valid gas");
+  if (isNaN(g) || isNaN(c)) return alert("Invalid gas input");
 
   gas.push({ gallons: g, cost: c });
-  save();
+
+  await saveCloud();
   updateUI();
 
   gallonsInput.value = "";
   costInput.value = "";
   ocrStatus.innerText = "Saved ✔";
-}
+};
 
-// UI
+// ---------------- OCR ----------------
+window.scanReceipt = async function (event) {
+  let file = event.target.files[0];
+  if (!file) return;
+
+  ocrStatus.innerText = "Scanning...";
+
+  const result = await Tesseract.recognize(file, 'eng');
+  let text = result.data.text.toLowerCase();
+
+  let gallons = text.match(/([0-9]+\.?[0-9]*)\s*(gal|gallons)/);
+  let total = text.match(/total[^0-9]*\$?([0-9]+\.?[0-9]*)/);
+
+  if (!total) {
+    let prices = [...text.matchAll(/\$([0-9]+\.?[0-9]*)/g)]
+      .map(x => parseFloat(x[1]));
+    if (prices.length) total = [null, Math.max(...prices)];
+  }
+
+  if (gallons) gallonsInput.value = gallons[1];
+  if (total) costInput.value = total[1];
+
+  ocrStatus.innerText = "Review & confirm";
+};
+
+// ---------------- UI ----------------
 function updateUI() {
   let miles = shifts.reduce((a,s)=>a+(s.end-s.start),0);
   let gasCost = gas.reduce((a,g)=>a+g.cost,0);
   let cpp = miles ? gasCost/miles : 0;
 
-  stats.innerHTML = `
-    <div>Miles: ${miles.toFixed(1)}</div>
-    <div>Gas: $${gasCost.toFixed(2)}</div>
-    <div>$/mile: ${cpp.toFixed(2)}</div>
-  `;
+  stats.innerHTML =
+    `Miles: ${miles.toFixed(1)}<br>
+     Gas: $${gasCost.toFixed(2)}<br>
+     $/mile: ${cpp.toFixed(2)}`;
 
-  let html = "";
-
-  shifts.forEach(s => {
+  history.innerHTML = shifts.map(s => {
     let m = s.end - s.start;
     let profit = s.earn - (m * cpp);
 
-    html += `
-      <div>
-        Miles: ${m.toFixed(1)}<br>
-        Earned: $${s.earn.toFixed(2)}<br>
-        Profit: $${profit.toFixed(2)}
-      </div><hr>
+    return `
+      Miles: ${m.toFixed(1)}<br>
+      Profit: $${profit.toFixed(2)}
+      <hr>
     `;
-  });
-
-  history.innerHTML = html;
+  }).join("");
 }
 
-// LOAD on start
 loadData();
+
 </script>
+
+</body>
+</html>
+
+
+
+<!-- const firebaseConfig = { -->
+  <!-- apiKey: "AIzaSyCsYz1dLbZVnmrql03LKLV7RFIFQl0I_F0", -->
+  <!-- authDomain: "mile-tracker-9dda0.firebaseapp.com",
+  projectId: "mile-tracker-9dda0",
+  storageBucket: "mile-tracker-9dda0.firebasestorage.app",
+  messagingSenderId: "358330569786",
+  appId: "1:358330569786:web:92aa672f9575d38daad103",
+}; -->
+
