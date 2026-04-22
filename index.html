@@ -77,7 +77,7 @@
     <button onclick="saveShift()">Save Shift</button>
   </div>
 
-  <!-- GAS (OPTIONAL) -->
+  <!-- GAS -->
   <div class="card">
     <h3>Gas (Optional)</h3>
     <input type="file" accept="image/*" capture="environment" onchange="scanReceipt(event)">
@@ -111,29 +111,31 @@ function save() {
   localStorage.setItem('gas', JSON.stringify(gas));
 }
 
-// SAVE SHIFT
+// SAVE SHIFT (FIXED)
 function saveShift() {
-  let start = parseFloat(startMiles.value);
-  let end = parseFloat(endMiles.value);
-  let earn = parseFloat(earnings.value);
+  let start = parseFloat(document.getElementById("startMiles").value);
+  let end = parseFloat(document.getElementById("endMiles").value);
+  let earn = parseFloat(document.getElementById("earnings").value);
 
   if (isNaN(start) || isNaN(end) || isNaN(earn)) {
     alert("Fill all fields");
     return;
   }
 
-  if (end < start) {
-    alert("End must be higher");
+  if (end <= start) {
+    alert("End must be greater than start");
     return;
   }
 
-  shifts.push({ start, end, earn });
+  let shift = { start, end, earn };
+  shifts.push(shift);
+
   save();
   updateUI();
 
-  startMiles.value = "";
-  endMiles.value = "";
-  earnings.value = "";
+  document.getElementById("startMiles").value = "";
+  document.getElementById("endMiles").value = "";
+  document.getElementById("earnings").value = "";
 }
 
 // OCR
@@ -180,7 +182,7 @@ function confirmGas() {
   ocrStatus.innerText = "Saved ✔";
 }
 
-// UPDATED LOGIC (THIS IS THE FIX)
+// UPDATE UI (FULL FIX)
 function updateUI() {
   let totalMiles = shifts.reduce((a,s)=>a+(s.end-s.start),0);
   let totalEarn = shifts.reduce((a,s)=>a+s.earn,0);
@@ -189,14 +191,21 @@ function updateUI() {
   let earnPerMile = totalMiles ? totalEarn / totalMiles : 0;
   let costPerMile = totalMiles && totalGas ? totalGas / totalMiles : 0;
 
-  stats.innerHTML = `
+  document.getElementById("stats").innerHTML = `
     Miles: ${totalMiles.toFixed(1)}<br>
     Earned: $${totalEarn.toFixed(2)}<br>
     Earnings per mile: $${earnPerMile.toFixed(2)}<br>
-    ${totalGas > 0 ? `Cost per mile: $${costPerMile.toFixed(2)}<br>` : ``}
+    ${totalGas > 0 ? `Cost per mile: $${costPerMile.toFixed(2)}` : ``}
   `;
 
-  history.innerHTML = shifts.map(s => {
+  const historyEl = document.getElementById("history");
+
+  if (shifts.length === 0) {
+    historyEl.innerHTML = "No shifts yet";
+    return;
+  }
+
+  historyEl.innerHTML = shifts.map((s, i) => {
     let miles = s.end - s.start;
     let earnPM = miles ? s.earn / miles : 0;
 
@@ -205,10 +214,13 @@ function updateUI() {
       : s.earn;
 
     return `
-      Miles: ${miles.toFixed(1)}<br>
-      Earned: $${s.earn.toFixed(2)}<br>
-      $/mile: $${earnPM.toFixed(2)}<br>
-      Profit: <b style="color:${profit>=0?'lime':'red'}">$${profit.toFixed(2)}</b>
+      <div>
+        <b>Shift ${i + 1}</b><br>
+        Miles: ${miles.toFixed(1)}<br>
+        Earned: $${s.earn.toFixed(2)}<br>
+        $/mile: $${earnPM.toFixed(2)}<br>
+        Profit: <span style="color:${profit>=0?'lime':'red'}">$${profit.toFixed(2)}</span>
+      </div>
       <hr>
     `;
   }).join("");
