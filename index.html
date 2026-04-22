@@ -45,13 +45,35 @@
 
     button {
       width: 100%;
-      padding: 12px;
-      margin-top: 10px;
+      padding: 10px;
+      margin-top: 8px;
       border-radius: 10px;
       border: none;
       background: #22c55e;
       color: white;
       font-weight: bold;
+    }
+
+    .danger { background: #ef4444; }
+    .edit { background: #3b82f6; }
+
+    .shift {
+      background: #0f172a;
+      padding: 12px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+    }
+
+    .shift-header {
+      display: flex;
+      justify-content: space-between;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    .shift-details {
+      display: none;
+      margin-top: 10px;
     }
 
     hr {
@@ -68,7 +90,6 @@
 
 <div class="container">
 
-  <!-- SHIFT -->
   <div class="card">
     <h3>Shift Entry</h3>
     <input id="startMiles" placeholder="Start Odometer">
@@ -77,24 +98,11 @@
     <button onclick="saveShift()">Save Shift</button>
   </div>
 
-  <!-- GAS -->
-  <div class="card">
-    <h3>Gas (Optional)</h3>
-    <input type="file" accept="image/*" capture="environment" onchange="scanReceipt(event)">
-    <p id="ocrStatus"></p>
-
-    <input id="gallonsInput" placeholder="Gallons">
-    <input id="costInput" placeholder="Total Cost ($)">
-    <button onclick="confirmGas()">Save Gas</button>
-  </div>
-
-  <!-- STATS -->
   <div class="card">
     <h3>Stats</h3>
     <div id="stats"></div>
   </div>
 
-  <!-- HISTORY -->
   <div class="card">
     <h3>History</h3>
     <div id="history"></div>
@@ -104,124 +112,101 @@
 
 <script>
 let shifts = JSON.parse(localStorage.getItem('shifts')) || [];
-let gas = JSON.parse(localStorage.getItem('gas')) || [];
 
 function save() {
   localStorage.setItem('shifts', JSON.stringify(shifts));
-  localStorage.setItem('gas', JSON.stringify(gas));
 }
 
-// SAVE SHIFT (FIXED)
+// SAVE
 function saveShift() {
-  let start = parseFloat(document.getElementById("startMiles").value);
-  let end = parseFloat(document.getElementById("endMiles").value);
-  let earn = parseFloat(document.getElementById("earnings").value);
+  let start = parseFloat(startMiles.value);
+  let end = parseFloat(endMiles.value);
+  let earn = parseFloat(earnings.value);
+
+  if (isNaN(start) || isNaN(end) || isNaN(earn)) return alert("Fill all fields");
+  if (end <= start) return alert("End must be higher");
+
+  shifts.push({ start, end, earn });
+  save();
+  updateUI();
+
+  startMiles.value = "";
+  endMiles.value = "";
+  earnings.value = "";
+}
+
+// DELETE
+function deleteShift(index) {
+  if (!confirm("Delete this shift?")) return;
+  shifts.splice(index, 1);
+  save();
+  updateUI();
+}
+
+// EDIT
+function editShift(index) {
+  let s = shifts[index];
+
+  let start = prompt("Start miles:", s.start);
+  let end = prompt("End miles:", s.end);
+  let earn = prompt("Earnings:", s.earn);
+
+  start = parseFloat(start);
+  end = parseFloat(end);
+  earn = parseFloat(earn);
 
   if (isNaN(start) || isNaN(end) || isNaN(earn)) {
-    alert("Fill all fields");
+    alert("Invalid input");
     return;
   }
 
-  if (end <= start) {
-    alert("End must be greater than start");
-    return;
-  }
-
-  let shift = { start, end, earn };
-  shifts.push(shift);
-
+  shifts[index] = { start, end, earn };
   save();
   updateUI();
-
-  document.getElementById("startMiles").value = "";
-  document.getElementById("endMiles").value = "";
-  document.getElementById("earnings").value = "";
 }
 
-// OCR
-async function scanReceipt(e) {
-  let file = e.target.files[0];
-  if (!file) return;
-
-  ocrStatus.innerText = "Scanning...";
-
-  const result = await Tesseract.recognize(file, 'eng');
-  let text = result.data.text.toLowerCase();
-
-  let gallons = text.match(/([0-9]+\.?[0-9]*)\s*(gal|gallons)/);
-  let total = text.match(/total[^0-9]*\$?([0-9]+\.?[0-9]*)/);
-
-  if (!total) {
-    let prices = [...text.matchAll(/\$([0-9]+\.?[0-9]*)/g)]
-      .map(x => parseFloat(x[1]));
-    if (prices.length) total = [null, Math.max(...prices)];
-  }
-
-  if (gallons) gallonsInput.value = gallons[1];
-  if (total) costInput.value = total[1];
-
-  ocrStatus.innerText = "Review & confirm";
+// TOGGLE DROPDOWN
+function toggleDetails(id) {
+  let el = document.getElementById(id);
+  el.style.display = el.style.display === "none" ? "block" : "none";
 }
 
-// SAVE GAS
-function confirmGas() {
-  let g = parseFloat(gallonsInput.value);
-  let c = parseFloat(costInput.value);
-
-  if (isNaN(g) || isNaN(c)) {
-    alert("Enter valid gas");
-    return;
-  }
-
-  gas.push({ gallons: g, cost: c });
-  save();
-  updateUI();
-
-  gallonsInput.value = "";
-  costInput.value = "";
-  ocrStatus.innerText = "Saved ✔";
-}
-
-// UPDATE UI (FULL FIX)
+// UI
 function updateUI() {
   let totalMiles = shifts.reduce((a,s)=>a+(s.end-s.start),0);
   let totalEarn = shifts.reduce((a,s)=>a+s.earn,0);
-  let totalGas = gas.reduce((a,g)=>a+g.cost,0);
-
   let earnPerMile = totalMiles ? totalEarn / totalMiles : 0;
-  let costPerMile = totalMiles && totalGas ? totalGas / totalMiles : 0;
 
-  document.getElementById("stats").innerHTML = `
+  stats.innerHTML = `
     Miles: ${totalMiles.toFixed(1)}<br>
     Earned: $${totalEarn.toFixed(2)}<br>
-    Earnings per mile: $${earnPerMile.toFixed(2)}<br>
-    ${totalGas > 0 ? `Cost per mile: $${costPerMile.toFixed(2)}` : ``}
+    $/mile: $${earnPerMile.toFixed(2)}
   `;
 
-  const historyEl = document.getElementById("history");
-
   if (shifts.length === 0) {
-    historyEl.innerHTML = "No shifts yet";
+    history.innerHTML = "No shifts yet";
     return;
   }
 
-  historyEl.innerHTML = shifts.map((s, i) => {
+  history.innerHTML = shifts.map((s, i) => {
     let miles = s.end - s.start;
     let earnPM = miles ? s.earn / miles : 0;
 
-    let profit = totalGas > 0
-      ? s.earn - (miles * costPerMile)
-      : s.earn;
-
     return `
-      <div>
-        <b>Shift ${i + 1}</b><br>
-        Miles: ${miles.toFixed(1)}<br>
-        Earned: $${s.earn.toFixed(2)}<br>
-        $/mile: $${earnPM.toFixed(2)}<br>
-        Profit: <span style="color:${profit>=0?'lime':'red'}">$${profit.toFixed(2)}</span>
+      <div class="shift">
+        <div class="shift-header" onclick="toggleDetails('d${i}')">
+          <span>Shift ${i+1}</span>
+          <span>$${s.earn.toFixed(2)}</span>
+        </div>
+
+        <div class="shift-details" id="d${i}">
+          Miles: ${miles.toFixed(1)}<br>
+          $/mile: $${earnPM.toFixed(2)}<br>
+
+          <button class="edit" onclick="editShift(${i})">Edit</button>
+          <button class="danger" onclick="deleteShift(${i})">Delete</button>
+        </div>
       </div>
-      <hr>
     `;
   }).join("");
 }
