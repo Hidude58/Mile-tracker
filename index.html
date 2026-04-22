@@ -68,6 +68,7 @@
 
 <div class="container">
 
+  <!-- SHIFT -->
   <div class="card">
     <h3>Shift Entry</h3>
     <input id="startMiles" placeholder="Start Odometer">
@@ -76,8 +77,9 @@
     <button onclick="saveShift()">Save Shift</button>
   </div>
 
+  <!-- GAS (OPTIONAL) -->
   <div class="card">
-    <h3>Gas Receipt</h3>
+    <h3>Gas (Optional)</h3>
     <input type="file" accept="image/*" capture="environment" onchange="scanReceipt(event)">
     <p id="ocrStatus"></p>
 
@@ -86,11 +88,13 @@
     <button onclick="confirmGas()">Save Gas</button>
   </div>
 
+  <!-- STATS -->
   <div class="card">
     <h3>Stats</h3>
     <div id="stats"></div>
   </div>
 
+  <!-- HISTORY -->
   <div class="card">
     <h3>History</h3>
     <div id="history"></div>
@@ -98,87 +102,43 @@
 
 </div>
 
-<script type="module">
+<script>
+let shifts = JSON.parse(localStorage.getItem('shifts')) || [];
+let gas = JSON.parse(localStorage.getItem('gas')) || [];
 
-// ---------------- FIREBASE ----------------
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
-import { getFirestore, doc, setDoc, getDoc } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+function save() {
+  localStorage.setItem('shifts', JSON.stringify(shifts));
+  localStorage.setItem('gas', JSON.stringify(gas));
+}
 
-// 🔴 PUT YOUR FIREBASE CONFIG HERE
-const firebaseConfig = {
-  apiKey: "AIzaSyCsYz1dLbZVnmrql03LKLV7RFIFQl0I_F0",
-  authDomain: "mile-tracker-9dda0.firebaseapp.com",
-  projectId: "mile-tracker-9dda0",
-  storageBucket: "mile-tracker-9dda0.firebasestorage.app",
-  messagingSenderId: "358330569786",
-  appId: "1:358330569786:web:92aa672f9575d38daad103",
-};
+// SAVE SHIFT
+function saveShift() {
+  let start = parseFloat(startMiles.value);
+  let end = parseFloat(endMiles.value);
+  let earn = parseFloat(earnings.value);
 
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
-
-let shifts = [];
-let gas = [];
-const userId = "defaultUser";
-
-// ---------------- LOAD CLOUD DATA ----------------
-async function loadData() {
-  const snap = await getDoc(doc(db, "users", userId));
-
-  if (snap.exists()) {
-    shifts = snap.data().shifts || [];
-    gas = snap.data().gas || [];
+  if (isNaN(start) || isNaN(end) || isNaN(earn)) {
+    alert("Fill all fields");
+    return;
   }
 
-  updateUI();
-}
-
-// ---------------- SAVE CLOUD DATA ----------------
-async function saveCloud() {
-  await setDoc(doc(db, "users", userId), {
-    shifts,
-    gas
-  });
-}
-
-// ---------------- SHIFT ----------------
-window.saveShift = async function () {
-  let start = parseFloat(document.getElementById("startMiles").value);
-  let end = parseFloat(document.getElementById("endMiles").value);
-  let earn = parseFloat(document.getElementById("earnings").value);
-
-  if (isNaN(start) || isNaN(end) || isNaN(earn)) return alert("Fill all fields");
+  if (end < start) {
+    alert("End must be higher");
+    return;
+  }
 
   shifts.push({ start, end, earn });
-
-  await saveCloud();
+  save();
   updateUI();
 
   startMiles.value = "";
   endMiles.value = "";
   earnings.value = "";
-};
+}
 
-// ---------------- GAS CONFIRM ----------------
-window.confirmGas = async function () {
-  let g = parseFloat(document.getElementById("gallonsInput").value);
-  let c = parseFloat(document.getElementById("costInput").value);
-
-  if (isNaN(g) || isNaN(c)) return alert("Invalid gas input");
-
-  gas.push({ gallons: g, cost: c });
-
-  await saveCloud();
-  updateUI();
-
-  gallonsInput.value = "";
-  costInput.value = "";
-  ocrStatus.innerText = "Saved ✔";
-};
-
-// ---------------- OCR ----------------
-window.scanReceipt = async function (event) {
-  let file = event.target.files[0];
+// OCR
+async function scanReceipt(e) {
+  let file = e.target.files[0];
   if (!file) return;
 
   ocrStatus.innerText = "Scanning...";
@@ -199,46 +159,63 @@ window.scanReceipt = async function (event) {
   if (total) costInput.value = total[1];
 
   ocrStatus.innerText = "Review & confirm";
-};
+}
 
-// ---------------- UI ----------------
+// SAVE GAS
+function confirmGas() {
+  let g = parseFloat(gallonsInput.value);
+  let c = parseFloat(costInput.value);
+
+  if (isNaN(g) || isNaN(c)) {
+    alert("Enter valid gas");
+    return;
+  }
+
+  gas.push({ gallons: g, cost: c });
+  save();
+  updateUI();
+
+  gallonsInput.value = "";
+  costInput.value = "";
+  ocrStatus.innerText = "Saved ✔";
+}
+
+// UPDATED LOGIC (THIS IS THE FIX)
 function updateUI() {
-  let miles = shifts.reduce((a,s)=>a+(s.end-s.start),0);
-  let gasCost = gas.reduce((a,g)=>a+g.cost,0);
-  let cpp = miles ? gasCost/miles : 0;
+  let totalMiles = shifts.reduce((a,s)=>a+(s.end-s.start),0);
+  let totalEarn = shifts.reduce((a,s)=>a+s.earn,0);
+  let totalGas = gas.reduce((a,g)=>a+g.cost,0);
 
-  stats.innerHTML =
-    `Miles: ${miles.toFixed(1)}<br>
-     Gas: $${gasCost.toFixed(2)}<br>
-     $/mile: ${cpp.toFixed(2)}`;
+  let earnPerMile = totalMiles ? totalEarn / totalMiles : 0;
+  let costPerMile = totalMiles && totalGas ? totalGas / totalMiles : 0;
+
+  stats.innerHTML = `
+    Miles: ${totalMiles.toFixed(1)}<br>
+    Earned: $${totalEarn.toFixed(2)}<br>
+    Earnings per mile: $${earnPerMile.toFixed(2)}<br>
+    ${totalGas > 0 ? `Cost per mile: $${costPerMile.toFixed(2)}<br>` : ``}
+  `;
 
   history.innerHTML = shifts.map(s => {
-    let m = s.end - s.start;
-    let profit = s.earn - (m * cpp);
+    let miles = s.end - s.start;
+    let earnPM = miles ? s.earn / miles : 0;
+
+    let profit = totalGas > 0
+      ? s.earn - (miles * costPerMile)
+      : s.earn;
 
     return `
-      Miles: ${m.toFixed(1)}<br>
-      Profit: $${profit.toFixed(2)}
+      Miles: ${miles.toFixed(1)}<br>
+      Earned: $${s.earn.toFixed(2)}<br>
+      $/mile: $${earnPM.toFixed(2)}<br>
+      Profit: <b style="color:${profit>=0?'lime':'red'}">$${profit.toFixed(2)}</b>
       <hr>
     `;
   }).join("");
 }
 
-loadData();
-
+updateUI();
 </script>
 
 </body>
 </html>
-
-
-
-<!-- const firebaseConfig = { -->
-  <!-- apiKey: "AIzaSyCsYz1dLbZVnmrql03LKLV7RFIFQl0I_F0", -->
-  <!-- authDomain: "mile-tracker-9dda0.firebaseapp.com",
-  projectId: "mile-tracker-9dda0",
-  storageBucket: "mile-tracker-9dda0.firebasestorage.app",
-  messagingSenderId: "358330569786",
-  appId: "1:358330569786:web:92aa672f9575d38daad103",
-}; -->
-
