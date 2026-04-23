@@ -6,41 +6,114 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <style>
-    body { margin:0; font-family:-apple-system; background:#0f172a; color:#e2e8f0; }
-    h2 { text-align:center; margin:20px 0; }
+    body {
+      margin: 0;
+      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+      background: #0f172a;
+      color: #e2e8f0;
+    }
 
-    .container { padding:16px; max-width:500px; margin:auto; }
-    .card { background:#1e293b; padding:16px; border-radius:16px; margin-bottom:16px; }
+    .header {
+      position: sticky;
+      top: 0;
+      background: rgba(15, 23, 42, 0.9);
+      backdrop-filter: blur(10px);
+      padding: 16px;
+      text-align: center;
+      font-weight: bold;
+      font-size: 18px;
+      border-bottom: 1px solid #1e293b;
+      z-index: 10;
+    }
+
+    .container {
+      padding: 16px;
+      max-width: 500px;
+      margin: auto;
+    }
+
+    .card {
+      background: #1e293b;
+      padding: 18px;
+      border-radius: 20px;
+      margin-bottom: 16px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.25);
+      transition: transform 0.15s ease;
+    }
+
+    .card:active {
+      transform: scale(0.98);
+    }
 
     input, select {
-      width:100%; padding:12px; margin-top:8px;
-      border-radius:10px; border:none;
-      background:#0f172a; color:white;
+      width: 100%;
+      padding: 14px;
+      margin-top: 10px;
+      border-radius: 12px;
+      border: none;
+      background: #0f172a;
+      color: white;
+      font-size: 16px;
     }
 
     button {
-      width:100%; padding:10px; margin-top:8px;
-      border-radius:10px; border:none;
-      background:#22c55e; color:white; font-weight:bold;
+      width: 100%;
+      padding: 14px;
+      margin-top: 12px;
+      border-radius: 12px;
+      border: none;
+      background: #22c55e;
+      color: white;
+      font-weight: bold;
+      font-size: 16px;
     }
 
-    .danger { background:#ef4444; }
-    .edit { background:#3b82f6; }
+    button:active {
+      opacity: 0.7;
+    }
 
-    .shift { background:#0f172a; padding:12px; border-radius:10px; margin-bottom:10px; }
-    .shift-header { display:flex; justify-content:space-between; cursor:pointer; font-weight:bold; }
-    .shift-details { display:none; margin-top:10px; }
+    .danger { background: #ef4444; }
+    .edit { background: #3b82f6; }
+
+    .shift {
+      background: #0f172a;
+      padding: 14px;
+      border-radius: 14px;
+      margin-bottom: 10px;
+    }
+
+    .shift-header {
+      display: flex;
+      justify-content: space-between;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 16px;
+    }
+
+    .shift-details {
+      display: none;
+      margin-top: 10px;
+      font-size: 14px;
+      opacity: 0.9;
+    }
+
+    .footer {
+      text-align: center;
+      font-size: 12px;
+      opacity: 0.5;
+      margin-top: 20px;
+    }
   </style>
 </head>
 
 <body>
 
-<h2>🚗 DriveLedger</h2>
+<div class="header">🚗 DriveLedger</div>
 
 <div class="container">
 
   <div class="card">
-    <h3>Shift Entry</h3>
+    <h3>Add Shift</h3>
     <input id="startMiles" placeholder="Start Odometer">
     <input id="endMiles" placeholder="End Odometer">
     <input id="earnings" placeholder="Earnings ($)">
@@ -67,6 +140,10 @@
     <div id="history"></div>
   </div>
 
+  <div class="footer">
+    DriveLedger • Mileage Tracker
+  </div>
+
 </div>
 
 <script>
@@ -77,9 +154,9 @@ function save() {
 }
 
 function saveShift() {
-  let start = parseFloat(document.getElementById("startMiles").value);
-  let end = parseFloat(document.getElementById("endMiles").value);
-  let earn = parseFloat(document.getElementById("earnings").value);
+  let start = parseFloat(startMiles.value);
+  let end = parseFloat(endMiles.value);
+  let earn = parseFloat(earnings.value);
 
   if (isNaN(start) || isNaN(end) || isNaN(earn)) return alert("Fill all fields");
   if (end <= start) return alert("End must be higher");
@@ -95,12 +172,13 @@ function saveShift() {
   save();
   updateUI();
 
-  document.getElementById("startMiles").value = "";
-  document.getElementById("endMiles").value = "";
-  document.getElementById("earnings").value = "";
+  startMiles.value = "";
+  endMiles.value = "";
+  earnings.value = "";
 }
 
 function deleteShift(id) {
+  if (!confirm("Delete shift?")) return;
   shifts = shifts.filter(s => s.id !== id);
   save();
   updateUI();
@@ -156,7 +234,6 @@ function updateUI() {
     $/mile: $${earnPerMile.toFixed(2)}
   `;
 
-  // FORCE CLEAR
   historyEl.innerHTML = "";
 
   if (sorted.length === 0) {
