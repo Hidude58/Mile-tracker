@@ -6,70 +6,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
   <style>
-    body {
-      margin: 0;
-      font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #0f172a;
-      color: #e2e8f0;
-    }
+    body { margin:0; font-family:-apple-system; background:#0f172a; color:#e2e8f0; }
+    h2 { text-align:center; margin:20px 0; }
 
-    h2 { text-align: center; margin: 20px 0; }
-
-    .container {
-      padding: 16px;
-      max-width: 500px;
-      margin: auto;
-    }
-
-    .card {
-      background: #1e293b;
-      padding: 16px;
-      border-radius: 16px;
-      margin-bottom: 16px;
-    }
+    .container { padding:16px; max-width:500px; margin:auto; }
+    .card { background:#1e293b; padding:16px; border-radius:16px; margin-bottom:16px; }
 
     input, select {
-      width: 100%;
-      padding: 12px;
-      margin-top: 8px;
-      border-radius: 10px;
-      border: none;
-      background: #0f172a;
-      color: white;
+      width:100%; padding:12px; margin-top:8px;
+      border-radius:10px; border:none;
+      background:#0f172a; color:white;
     }
 
     button {
-      width: 100%;
-      padding: 10px;
-      margin-top: 8px;
-      border-radius: 10px;
-      border: none;
-      background: #22c55e;
-      color: white;
-      font-weight: bold;
+      width:100%; padding:10px; margin-top:8px;
+      border-radius:10px; border:none;
+      background:#22c55e; color:white; font-weight:bold;
     }
 
-    .danger { background: #ef4444; }
-    .edit { background: #3b82f6; }
+    .danger { background:#ef4444; }
+    .edit { background:#3b82f6; }
 
-    .shift {
-      background: #0f172a;
-      padding: 12px;
-      border-radius: 10px;
-      margin-bottom: 10px;
-    }
-
-    .shift-header {
-      display: flex;
-      justify-content: space-between;
-      cursor: pointer;
-      font-weight: bold;
-    }
-
-    .shift-details {
-      display: none;
-      margin-top: 10px;
-    }
+    .shift { background:#0f172a; padding:12px; border-radius:10px; margin-bottom:10px; }
+    .shift-header { display:flex; justify-content:space-between; cursor:pointer; font-weight:bold; }
+    .shift-details { display:none; margin-top:10px; }
   </style>
 </head>
 
@@ -116,11 +76,10 @@ function save() {
   localStorage.setItem('shifts', JSON.stringify(shifts));
 }
 
-// SAVE SHIFT (WITH ID)
 function saveShift() {
-  let start = parseFloat(startMiles.value);
-  let end = parseFloat(endMiles.value);
-  let earn = parseFloat(earnings.value);
+  let start = parseFloat(document.getElementById("startMiles").value);
+  let end = parseFloat(document.getElementById("endMiles").value);
+  let earn = parseFloat(document.getElementById("earnings").value);
 
   if (isNaN(start) || isNaN(end) || isNaN(earn)) return alert("Fill all fields");
   if (end <= start) return alert("End must be higher");
@@ -136,20 +95,17 @@ function saveShift() {
   save();
   updateUI();
 
-  startMiles.value = "";
-  endMiles.value = "";
-  earnings.value = "";
+  document.getElementById("startMiles").value = "";
+  document.getElementById("endMiles").value = "";
+  document.getElementById("earnings").value = "";
 }
 
-// DELETE (BY ID)
 function deleteShift(id) {
-  if (!confirm("Delete shift?")) return;
   shifts = shifts.filter(s => s.id !== id);
   save();
   updateUI();
 }
 
-// EDIT (BY ID)
 function editShift(id) {
   let s = shifts.find(x => x.id === id);
 
@@ -157,7 +113,7 @@ function editShift(id) {
   let end = parseFloat(prompt("End miles:", s.end));
   let earn = parseFloat(prompt("Earnings:", s.earn));
 
-  if (isNaN(start) || isNaN(end) || isNaN(earn)) return alert("Invalid input");
+  if (isNaN(start) || isNaN(end) || isNaN(earn)) return;
 
   s.start = start;
   s.end = end;
@@ -167,13 +123,11 @@ function editShift(id) {
   updateUI();
 }
 
-// TOGGLE
 function toggleDetails(id) {
   let el = document.getElementById(id);
   el.style.display = el.style.display === "none" ? "block" : "none";
 }
 
-// SORT
 function getSortedShifts() {
   let type = document.getElementById("sortType").value;
   let arr = [...shifts];
@@ -186,46 +140,54 @@ function getSortedShifts() {
   return arr;
 }
 
-// UI
 function updateUI() {
+  const statsEl = document.getElementById("stats");
+  const historyEl = document.getElementById("history");
+
   let sorted = getSortedShifts();
 
   let totalMiles = shifts.reduce((a,s)=>a+(s.end-s.start),0);
   let totalEarn = shifts.reduce((a,s)=>a+s.earn,0);
   let earnPerMile = totalMiles ? totalEarn / totalMiles : 0;
 
-  stats.innerHTML = `
+  statsEl.innerHTML = `
     Miles: ${totalMiles.toFixed(1)}<br>
     Earned: $${totalEarn.toFixed(2)}<br>
     $/mile: $${earnPerMile.toFixed(2)}
   `;
 
+  // FORCE CLEAR
+  historyEl.innerHTML = "";
+
   if (sorted.length === 0) {
-    history.innerHTML = "No shifts yet";
+    historyEl.innerHTML = "No shifts yet";
     return;
   }
 
-  history.innerHTML = sorted.map((s, i) => {
+  sorted.forEach((s, i) => {
     let miles = s.end - s.start;
     let earnPM = miles ? s.earn / miles : 0;
 
-    return `
-      <div class="shift">
-        <div class="shift-header" onclick="toggleDetails('d${i}')">
-          <span>$${s.earn.toFixed(2)}</span>
-          <span>${miles.toFixed(1)} mi</span>
-        </div>
+    let div = document.createElement("div");
+    div.className = "shift";
 
-        <div class="shift-details" id="d${i}">
-          Miles: ${miles.toFixed(1)}<br>
-          $/mile: $${earnPM.toFixed(2)}<br>
+    div.innerHTML = `
+      <div class="shift-header" onclick="toggleDetails('d${i}')">
+        <span>$${s.earn.toFixed(2)}</span>
+        <span>${miles.toFixed(1)} mi</span>
+      </div>
 
-          <button class="edit" onclick="editShift(${s.id})">Edit</button>
-          <button class="danger" onclick="deleteShift(${s.id})">Delete</button>
-        </div>
+      <div class="shift-details" id="d${i}">
+        Miles: ${miles.toFixed(1)}<br>
+        $/mile: $${earnPM.toFixed(2)}<br>
+
+        <button class="edit" onclick="editShift(${s.id})">Edit</button>
+        <button class="danger" onclick="deleteShift(${s.id})">Delete</button>
       </div>
     `;
-  }).join("");
+
+    historyEl.appendChild(div);
+  });
 }
 
 updateUI();
